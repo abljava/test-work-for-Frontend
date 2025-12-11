@@ -1,9 +1,10 @@
 <template>
-  <v-form @submit.prevent="handleSubmit" class="mb-6">
+  <v-form ref="formRef" @submit.prevent="handleSubmit" class="mb-6">
     <v-text-field
       v-model="taskTitle"
       label="Новая задача"
       :rules="[validateTaskTitle]"
+      validate-on="submit lazy"
       variant="outlined"
       density="comfortable"
       :maxlength="500"
@@ -14,27 +15,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 import { addTask } from '@/composables/useTasks'
 
 const taskTitle = ref('')
+const formRef = ref<{
+  validate: () => Promise<{ valid: boolean }>
+  resetValidation: () => Promise<void>
+} | null>(null)
 
 const validateTaskTitle = (value: string): boolean | string => {
-  if (!value || !value.trim()) {
+  if (!value?.trim()) {
     return 'Введите текст задачи'
-  }
-  if (value.trim().length > 500) {
-    return 'Название задачи не может превышать 500 символов'
   }
   return true
 }
 
-const handleSubmit = () => {
-  if (!taskTitle.value.trim()) return
+const handleSubmit = async () => {
+  const { valid } = await formRef.value?.validate() ?? { valid: false }
+
+  if (!valid) return
 
   try {
-    addTask(taskTitle.value)
+    addTask(taskTitle.value.trim())
     taskTitle.value = ''
+    // Используем nextTick для корректного сброса валидации после очистки поля
+    await nextTick()
+    await formRef.value?.resetValidation()
   } catch (error) {
     if (error instanceof Error) {
       alert(error.message)
